@@ -77,7 +77,7 @@ def should_challenge_request(ip, user_agent, endpoint):
     if not S1X_PROTECTION_CONFIG['enabled']: return False
     session_data = verification_sessions.get(ip)
     session_timeout = S1X_PROTECTION_CONFIG.get('session_timeout', 1800)
-    if session_data:
+    if session_
         if session_data.get('captcha_verified', False) and (time.time() - session_data.get('verified_at', 0)) < session_timeout:
             return False
         else:
@@ -167,11 +167,6 @@ def admin_authenticate():
         return jsonify({"success": True, "session_id": secrets.token_hex(16)})
     return jsonify({"success": False, "message": "اسم المستخدم أو كلمة المرور غير صحيحة"})
 
-# --- Load registeredUIDs from DB ---
-registeredUIDs = {}
-for acc in get_all_accounts():
-    registeredUIDs[str(acc['id'])] = get_friends_by_account(acc['id'])
-
 # --- Main Routes ---
 @app.route('/')
 @protection_required
@@ -179,6 +174,12 @@ for acc in get_all_accounts():
 def index():
     accounts = get_all_accounts()
     nicknames = {str(acc['id']): acc['nickname'] for acc in accounts}
+
+    # تحميل registeredUIDs من قاعدة البيانات عند كل طلب
+    registeredUIDs = {}
+    for acc in accounts:
+        registeredUIDs[str(acc['id'])] = get_friends_by_account(acc['id'])
+
     return render_template('index.html', nicknames=nicknames, registeredUIDs=registeredUIDs)
 
 # --- Create / Update Account Name ---
@@ -216,7 +217,7 @@ def add_friend():
     data = request.json or {}
     account_id = data.get('account_id')
     friend_uid = data.get('friend_uid')
-    days = data.get('days', None)
+    days = data.get('days', 0)
 
     if not account_id or not friend_uid:
         return jsonify({"success": False, "message": "يجب تحديد الحساب والـ UID لإضافة الصديق"}), 400
@@ -237,18 +238,18 @@ def add_friend():
         if not token:
             return jsonify({"success": False, "message": "فشل في الحصول على التوكن"}), 500
 
-        # إرسال طلب إضافة صديق
+        # إرسال طلب إضافة صديق خارجي
         add_url = f"https://add-friend-weld.vercel.app/add_friend?token={token}&uid={friend_uid}"
         add_response = requests.get(add_url, timeout=5)
         add_response.raise_for_status()
         add_data = add_response.json()
 
         if add_data.get('status') == 'success':
-            # حفظ الـ UID في قاعدة البيانات
-            add_account(friend_uid, password='')  # يمكنك تعديل الباسوورد إذا متوفر
+            # حفظ الصديق في قاعدة البيانات باستخدام add_friend_to_db
+            add_friend_to_db(account_id, friend_uid, days=days)
 
             # إذا تم تحديد الأيام، إرسالها للـ API الخارجي
-            if days is not None:
+            if days:
                 try:
                     api_url = f"https://time-bngx-0c2h.onrender.com/api/add_uid?uid={friend_uid}&time={days}&type=days&permanent=false"
                     external_resp = requests.get(api_url, timeout=5)
@@ -298,7 +299,7 @@ def remove_friend():
         if remove_data.get('success', False):
             # إزالة من قاعدة البيانات
             conn = get_db_connection()
-            conn.run('DELETE FROM accounts WHERE uid = :uid;', uid=int(friend_uid))
+            conn.run('DELETE FROM account_friends WHERE friend_uid = :friend_uid AND account_id = :account_id;', friend_uid=int(friend_uid), account_id=int(account_id))
             conn.close()
             return jsonify({"success": True, "message": "تمت إزالة الصديق من DB بنجاح"})
         else:
