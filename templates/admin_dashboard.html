@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>CODEX TEAM - Admin Dashboard</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+body {
+    font-family: 'Fira Code', monospace;
+    background: #0d0d0d;
+    color: #00ff99;
+}
+.section-title {
+    font-size: 28px;
+    font-weight: 600;
+    color: #00ff99;
+    position: relative;
+    display: inline-block;
+    margin-bottom: 20px;
+}
+.section-title::after {
+    content: "";
+    position: absolute;
+    width: 100%;
+    height: 4px;
+    bottom: -5px;
+    left: 0;
+    background: linear-gradient(90deg, #ff00ff, #00ffff);
+    border-radius: 2px;
+}
+.tool-section {
+    padding: 30px 20px;
+    background: rgba(0,0,0,0.7);
+    margin: 20px 0;
+    border-radius: 12px;
+}
+.input-group { margin-bottom: 15px; }
+.input-field {
+    width: 100%;
+    padding: 8px 10px;
+    border-radius: 6px;
+    border: 1px solid #00ff99;
+    background: #111;
+    color: #00ff99;
+}
+.btn {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 6px;
+    background: linear-gradient(90deg,#ff00ff,#00ffff);
+    color: #000;
+    cursor: pointer;
+    font-weight: 600;
+}
+.status-message {
+    color: #ff5555;
+    font-weight: 500;
+    margin-top: 5px;
+}
+table {
+    width: 100%;
+    border-collapse: collapse; 
+    margin-top: 10px;
+    color: #00ff99;
+}
+th, td {
+    border: 1px solid #00ff99;
+    padding: 8px;
+    text-align: center;
+}
+th {
+    background: linear-gradient(90deg,#ff00ff,#00ffff);
+    color: #000;
+}
+/* Glitch effect for headers */
+.glitch-text {
+    position: relative;
+    color: #00ff99;
+    font-size: 32px;
+    font-weight: 700;
+}
+.glitch-text::before,
+.glitch-text::after {
+    content: attr(data-text);
+    position: absolute;
+    left: 0;
+    top: 0;
+    opacity: 0.8;
+}
+.glitch-text::before {
+    left: 2px;
+    text-shadow: -2px 0 #f0f;
+    animation: glitchTop 2s infinite linear alternate-reverse;
+}
+.glitch-text::after {
+    left: -2px;
+    text-shadow: -2px 0 #0ff;
+    animation: glitchBottom 2s infinite linear alternate-reverse;
+}
+@keyframes glitchTop {
+    0% { clip: rect(0,9999px,0,0); }
+    5% { clip: rect(0,9999px,5px,0); }
+    10% { clip: rect(0,9999px,0,0); }
+    15% { clip: rect(0,9999px,5px,0); }
+    20% { clip: rect(0,9999px,0,0); }
+    25% { clip: rect(0,9999px,5px,0); }
+    30% { clip: rect(0,9999px,0,0); }
+    100% { clip: rect(0,9999px,0,0); }
+}
+@keyframes glitchBottom {
+    0% { clip: rect(5px,9999px,9999px,0); }
+    5% { clip: rect(5px,9999px,9999px,0); }
+    10% { clip: rect(5px,9999px,9999px,0); }
+    15% { clip: rect(0,9999px,9999px,0); }
+    20% { clip: rect(5px,9999px,9999px,0); }
+    25% { clip: rect(0,9999px,9999px,0); }
+    30% { clip: rect(5px,9999px,9999px,0); }
+    100% { clip: rect(5px,9999px,9999px,0); }
+}
+/* Matrix canvas full screen */
+#matrix-canvas {
+    position: fixed;
+    top:0;
+    left:0;
+    width: 100%;
+    height: 100%;
+    z-index: -1;
+}
+</style>
+</head>
+<body>
+<div class="container">
+
+    <!-- CREATE NEW USER Section -->
+    <section class="tool-section">
+        <h2 class="section-title glitch-text" data-text="Create Admin User">Create Admin User</h2>
+        <div class="input-group">
+            <input type="text" id="new-username" class="input-field" placeholder="Username">
+        </div>
+        <div class="input-group">
+            <input type="password" id="new-password" class="input-field" placeholder="Password">
+        </div>
+        <button class="btn" onclick="createUser()">Create User</button>
+        <p id="status" class="status-message"></p>
+    </section>
+
+    <!-- EXISTING USERS Section -->
+    <section class="tool-section">
+        <h2 class="section-title glitch-text" data-text="Existing Admins">Existing Admins</h2>
+        <table>
+            <thead>
+                <tr><th>ID</th><th>Username</th></tr>
+            </thead>
+            <tbody>
+                {% for admin in admins %}
+                <tr>
+                    <td>{{ admin.id }}</td>
+                    <td>{{ admin.username }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+
+</div>
+
+<canvas id="matrix-canvas"></canvas>
+
+<script>
+function createUser(){
+    const username = document.getElementById('new-username').value;
+    const password = document.getElementById('new-password').value;
+    if(!username || !password) return;
+    fetch('/admin/create_user',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({username,password})
+    }).then(r=>r.json()).then(res=>{
+        document.getElementById('status').innerText = res.message;
+        if(res.success) window.location.reload();
+    });
+}
+
+// Matrix Rain Effect
+const canvas = document.getElementById('matrix-canvas');
+const ctx = canvas.getContext('2d');
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ123456789@#$%^&*()*&^%'.split('');
+const fontSize = 16;
+const columns = canvas.width / fontSize;
+const drops = Array(Math.floor(columns)).fill(1);
+
+function drawMatrix() {
+    ctx.fillStyle = 'rgba(0,0,0,0.05)';
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.fillStyle = '#0F0';
+    ctx.font = fontSize + 'px monospace';
+    for(let i=0;i<drops.length;i++){
+        const text = letters[Math.floor(Math.random()*letters.length)];
+        ctx.fillText(text, i*fontSize, drops[i]*fontSize);
+        if(drops[i]*fontSize > canvas.height && Math.random()>0.975) drops[i]=0;
+        drops[i]++;
+    }
+}
+setInterval(drawMatrix,50);
+window.addEventListener('resize',()=>{
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+});
+</script>
+
+</body>
+</html>
