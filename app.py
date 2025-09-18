@@ -2,13 +2,20 @@ from flask import Flask, request, jsonify, render_template, redirect, session, u
 import time, secrets, re, threading, requests, random
 from functools import wraps
 from collections import defaultdict
+from flask_caching import Cache
+
 from db import (
     create_accounts_table, create_friends_table, get_all_accounts, get_account_by_id,
-    update_account_nickname, add_account, add_friend_to_db, get_friends_by_account
+    update_account_nickname, add_account, add_friend_to_db, get_friends_by_account, get_db_connection
 )
 
 app = Flask(__name__)
 app.secret_key = secrets.token_hex(32)
+
+# إعداد التخزين المؤقت
+app.config['CACHE_TYPE'] = 'SimpleCache'
+app.config['CACHE_DEFAULT_TIMEOUT'] = 300  # 5 دقائق
+cache = Cache(app)
 
 # إنشاء الجداول إذا لم تكن موجودة
 create_accounts_table()
@@ -168,24 +175,21 @@ def admin_authenticate():
     return jsonify({"success": False, "message": "اسم المستخدم أو كلمة المرور غير صحيحة"})
 
 # --- Main Routes ---
+
 @app.route('/')
 @protection_required
 @admin_required
+@cache.cached(timeout=300, key_prefix='index_page')
 def index():
     accounts = get_all_accounts()
     nicknames = {str(acc['id']): acc['nickname'] for acc in accounts}
-
     try:
         response = requests.get("https://time-bngx-0c2h.onrender.com/api/list_uids", timeout=5)
         response.raise_for_status()
-        # بيانات list_uids يجب أن تكون مثلاً قائمة أو dict
         added_uids = response.json()
-    except Exception as e:
+    except Exception:
         added_uids = {}
-        # يمكن تسجيل الخطأ مثلاً
-
     return render_template('index.html', nicknames=nicknames, registeredUIDs=added_uids)
-
 
 # --- Create / Update Account Name ---
 @app.route('/api/create_account', methods=['POST'])
@@ -213,8 +217,6 @@ def create_account():
         return jsonify({"success": False, "message": f"خطأ داخلي: {str(e)}"}), 500
 
 # --- Add Friend ---
-ADD_URL_TEMPLATE = "https://add-friend-weld.vercel.app/add_friend?token={token}&uid={uid}"
-
 @app.route('/api/add_friend', methods=['POST'])
 @protection_required
 @admin_required
@@ -250,6 +252,9 @@ def add_friend():
         if add_data.get('status') == 'success':
             add_friend_to_db(account_id, friend_uid, days=days)
 
+            # حذف الكاش لتحديث الصفحة في الزيارات التالية
+            cache.delete('index_page')
+
             if days:
                 try:
                     api_url = f"https://time-bngx-0c2h.onrender.com/api/add_uid?uid={friend_uid}&time={days}&type=days&permanent=false"
@@ -270,6 +275,7 @@ def add_friend():
     except Exception as e:
         return jsonify({"success": False, "message": f"خطأ داخلي: {str(e)}"}), 500
 
+# --- Remove Friend (using new API without token) ---
 @app.route('/api/remove_friend', methods=['POST'])
 @protection_required
 @admin_required
@@ -285,24 +291,23 @@ def remove_friend():
     if not account:
         return jsonify({"success": False, "message": "الحساب غير موجود"}), 400
 
-    uid = account['uid']
-    password = account['password']
-
     try:
-        oauth_url = f"https://jwt-silk-xi.vercel.app/api/oauth_guest?uid={uid}&password={password}"
-        token = requests.get(oauth_url, timeout=5).json().get('token')
-        if not token:
-            return jsonify({"success": False, "message": "فشل الحصول على التوكن"}), 500
-
-        remove_url = f"https://remove-pi-azure.vercel.app/remove_friend?token={token}&uid={friend_uid}"
-        remove_data = requests.get(remove_url, timeout=5).json()
+        remove_url = f"https://time-bngx-0c2h.onrender.com/api/remove_uid?uid={friend_uid}"
+        remove_response = requests.get(remove_url, timeout=5)
+        remove_response.raise_for_status()
+        remove_data = remove_response.json()
 
         if remove_data.get('success', False):
+            # إزالة من قاعدة البيانات محلياً أيضاً
             conn = get_db_connection()
             conn.run('DELETE FROM account_friends WHERE friend_uid = :friend_uid AND account_id = :account_id;',
                      friend_uid=int(friend_uid), account_id=int(account_id))
             conn.close()
-            return jsonify({"success": True, "message": "تمت إزالة الصديق من DB بنجاح"})
+
+            # حذف الكاش لتحديث الصفحة
+            cache.delete('index_page')
+
+            return jsonify({"success": True, "message": "تمت إزالة الصديق بنجاح"})
         else:
             return jsonify({"success": False, "message": remove_data.get('message', "فشل إزالة الصديق")})
     except Exception as e:
