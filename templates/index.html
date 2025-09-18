@@ -12,6 +12,13 @@
             font-family: 'Fira Code', monospace;
             background: #0d0d0d;
             color: #00ff99;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            padding: 20px;
+            position: relative;
+            z-index: 2;
         }
         .section-title {
             font-size: 28px;
@@ -52,10 +59,10 @@
             background: linear-gradient(90deg,#ff00ff,#00ffff);
             color: #000;
         }
-        /* ألوان حسب الوقت المتبقي */
-        .long-term { background-color: rgba(0, 255, 0, 0.2); }   /* أخضر فاتح */
-        .mid-term { background-color: rgba(255, 255, 0, 0.2); } /* أصفر فاتح */
-        .short-term { background-color: rgba(255, 0, 0, 0.2); } /* أحمر فاتح */
+        /* تلوين حسب المدة المتبقية */
+        .long-term { background-color: rgba(0, 255, 0, 0.15); }
+        .mid-term { background-color: rgba(255, 255, 0, 0.15); }
+        .short-term { background-color: rgba(255, 0, 0, 0.15); }
         /* Glitch effect */
         .glitch-text {
             position: relative;
@@ -89,6 +96,13 @@
             0%,10%,20%,30%,100% { clip: rect(5px,9999px,9999px,0); }
             15%,25% { clip: rect(0,9999px,9999px,0); }
         }
+        /* Matrix خلفية */
+        #matrix-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
     </style>
 </head>
 <body>
@@ -98,7 +112,7 @@
         <section id="registered-ids" class="tool-section">
             <h2 class="section-title glitch-text" data-text="Registered UIDs">Registered UIDs</h2>
             <div id="uids-list">
-                {% if registeredUIDs %}
+                {% if registeredUIDs and registeredUIDs.uids %}
                 <table>
                     <thead>
                         <tr>
@@ -110,7 +124,7 @@
                         </tr>
                     </thead>
                     <tbody>
-                        {% for uid, info in registeredUIDs.items() %}
+                        {% for uid, info in registeredUIDs.uids.items() %}
                         {% set days = info.remaining_time.days %}
                         <tr class="{% if days > 30 %}long-term{% elif days >= 7 %}mid-term{% else %}short-term{% endif %}">
                             <td>{{ uid }}</td>
@@ -132,13 +146,12 @@
 
     </div>
 
-    <!-- Matrix Rain Background Canvas -->
+    <!-- Matrix Rain Background -->
     <canvas id="matrix-canvas"></canvas>
 
     <!-- Script -->
-    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
     <script>
-        // Matrix Rain Background animation
+        // Matrix Rain Background
         const canvas = document.getElementById('matrix-canvas');
         const ctx = canvas.getContext('2d');
         canvas.width = window.innerWidth;
@@ -163,7 +176,6 @@
                 drops[i]++;
             }
         }
-
         setInterval(drawMatrix, 50);
         window.addEventListener('resize', () => {
             canvas.width = window.innerWidth;
