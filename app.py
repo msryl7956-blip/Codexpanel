@@ -183,13 +183,22 @@ def admin_authenticate():
 def index():
     accounts = get_all_accounts()
     nicknames = {str(acc['id']): acc['nickname'] for acc in accounts}
+
     try:
         response = requests.get("https://time-bngx-0c2h.onrender.com/api/list_uids", timeout=5)
         response.raise_for_status()
-        added_uids = response.json()
+        api_data = response.json()
+        # نأخذ فقط dict تبع uids
+        registered_uids = api_data.get("uids", {})
     except Exception:
-        added_uids = {}
-    return render_template('index.html', nicknames=nicknames, registeredUIDs=added_uids)
+        registered_uids = {}
+
+    return render_template(
+        'index.html',
+        nicknames=nicknames,
+        registeredUIDs=registered_uids  # الآن فقط اليوزرات
+    )
+
 
 # --- Create / Update Account Name ---
 @app.route('/api/create_account', methods=['POST'])
