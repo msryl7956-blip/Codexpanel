@@ -179,25 +179,28 @@ def admin_authenticate():
 @app.route('/')
 @protection_required
 @admin_required
-@cache.cached(timeout=300, key_prefix='index_page')
 def index():
     accounts = get_all_accounts()
     nicknames = {str(acc['id']): acc['nickname'] for acc in accounts}
 
+    registered_uids = {}
+
     try:
-        response = requests.get("https://time-bngx-0c2h.onrender.com/api/list_uids", timeout=5)
+        response = requests.get("https://time-bngx-0c2h.onrender.com/api/list_uids", timeout=10)
+        print("API status:", response.status_code)  # DEBUG
+        print("API text:", response.text[:500])     # DEBUG (أول 500 كاركتر)
         response.raise_for_status()
         api_data = response.json()
-        # نأخذ فقط dict تبع uids
         registered_uids = api_data.get("uids", {})
-    except Exception:
-        registered_uids = {}
+    except Exception as e:
+        print("Error fetching API:", e)
 
     return render_template(
         'index.html',
         nicknames=nicknames,
-        registeredUIDs=registered_uids  # dict مباشرة
+        registeredUIDs=registered_uids
     )
+
 
 
 
