@@ -230,7 +230,6 @@ def add_friend():
     password = account['password']
 
     try:
-        # الحصول على توكن
         oauth_url = f"https://jwt-silk-xi.vercel.app/api/oauth_guest?uid={uid}&password={password}"
         oauth_response = requests.get(oauth_url, timeout=5)
         oauth_response.raise_for_status()
@@ -238,17 +237,14 @@ def add_friend():
         if not token:
             return jsonify({"success": False, "message": "فشل في الحصول على التوكن"}), 500
 
-        # إرسال طلب إضافة صديق خارجي
         add_url = f"https://add-friend-weld.vercel.app/add_friend?token={token}&uid={friend_uid}"
         add_response = requests.get(add_url, timeout=5)
         add_response.raise_for_status()
         add_data = add_response.json()
 
         if add_data.get('status') == 'success':
-            # حفظ الصديق في قاعدة البيانات باستخدام add_friend_to_db
             add_friend_to_db(account_id, friend_uid, days=days)
 
-            # إذا تم تحديد الأيام، إرسالها للـ API الخارجي
             if days:
                 try:
                     api_url = f"https://time-bngx-0c2h.onrender.com/api/add_uid?uid={friend_uid}&time={days}&type=days&permanent=false"
@@ -297,9 +293,9 @@ def remove_friend():
         remove_data = requests.get(remove_url, timeout=5).json()
 
         if remove_data.get('success', False):
-            # إزالة من قاعدة البيانات
             conn = get_db_connection()
-            conn.run('DELETE FROM account_friends WHERE friend_uid = :friend_uid AND account_id = :account_id;', friend_uid=int(friend_uid), account_id=int(account_id))
+            conn.run('DELETE FROM account_friends WHERE friend_uid = :friend_uid AND account_id = :account_id;',
+                     friend_uid=int(friend_uid), account_id=int(account_id))
             conn.close()
             return jsonify({"success": True, "message": "تمت إزالة الصديق من DB بنجاح"})
         else:
