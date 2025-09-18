@@ -13,7 +13,6 @@
             background: #0d0d0d;
             color: #00ff99;
         }
-
         .section-title {
             font-size: 28px;
             font-weight: 600;
@@ -22,7 +21,6 @@
             display: inline-block;
             margin-bottom: 20px;
         }
-
         .section-title::after {
             content: "";
             position: absolute;
@@ -33,18 +31,15 @@
             background: linear-gradient(90deg, #ff00ff, #00ffff);
             border-radius: 2px;
         }
-
         .tool-section {
             padding: 30px 20px;
             background: rgba(0,0,0,0.7);
             margin: 20px 0;
             border-radius: 12px;
         }
-
         .input-group {
             margin-bottom: 15px;
         }
-
         .input-field {
             width: 100%;
             padding: 8px 10px;
@@ -53,7 +48,6 @@
             background: #111;
             color: #00ff99;
         }
-
         .btn {
             padding: 8px 16px;
             border: none;
@@ -63,38 +57,32 @@
             cursor: pointer;
             font-weight: 600;
         }
-
         .status-message {
             color: #ff5555;
             font-weight: 500;
             margin-top: 5px;
         }
-
         .api-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit,minmax(300px,1fr));
             gap: 20px;
         }
-
         .api-card {
             padding: 20px;
             border: 1px solid #00ff99;
             border-radius: 12px;
             background: rgba(0,0,0,0.6);
         }
-
         .api-header {
             display: flex;
             align-items: center;
             gap: 10px;
             margin-bottom: 15px;
         }
-
         .api-header h3 {
             margin: 0;
             color: #00ff99;
         }
-
         /* Glitch effect for headers */
         .glitch-text {
             position: relative;
@@ -102,7 +90,6 @@
             font-size: 32px;
             font-weight: 700;
         }
-
         .glitch-text::before,
         .glitch-text::after {
             content: attr(data-text);
@@ -111,19 +98,16 @@
             top: 0;
             opacity: 0.8;
         }
-
         .glitch-text::before {
             left: 2px;
             text-shadow: -2px 0 #f0f;
             animation: glitchTop 2s infinite linear alternate-reverse;
         }
-
         .glitch-text::after {
             left: -2px;
             text-shadow: -2px 0 #0ff;
             animation: glitchBottom 2s infinite linear alternate-reverse;
         }
-
         @keyframes glitchTop {
             0% { clip: rect(0,9999px,0,0); }
             5% { clip: rect(0,9999px,5px,0); }
@@ -134,7 +118,6 @@
             30% { clip: rect(0,9999px,0,0); }
             100% { clip: rect(0,9999px,0,0); }
         }
-
         @keyframes glitchBottom {
             0% { clip: rect(5px,9999px,9999px,0); }
             5% { clip: rect(5px,9999px,9999px,0); }
@@ -145,122 +128,59 @@
             30% { clip: rect(5px,9999px,9999px,0); }
             100% { clip: rect(5px,9999px,9999px,0); }
         }
+        table {
+            width: 100%;
+            border-collapse: collapse; 
+            margin-top: 10px;
+            color: #00ff99;
+        }
+        th, td {
+            border: 1px solid #00ff99;
+            padding: 8px;
+            text-align: center;
+        }
+        th {
+            background: linear-gradient(90deg,#ff00ff,#00ffff);
+            color: #000;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <!-- CREAT BOT Section -->
-        <section id="bio-tool" class="tool-section">
-            <h2 class="section-title glitch-text" data-text="Creat Bot Tool">Creat Bot Tool</h2>
-            <div class="tool-container">
-                <div class="input-group">
-                    <label for="bot-select">اختر رقم الحساب</label>
-                    <select id="bot-select" class="input-field">
-                        <option value="" disabled selected>اختر رقم الحساب...</option>
-                        <option value="1">1</option>
-                        <option value="2">2</option>
-                        <option value="3">3</option>
-                    </select>
-                </div>
-                <div class="input-group">
-                    <label for="bot-name">BOT NAME</label>
-                    <input type="text" id="bot-name" placeholder="Enter your bot name..." class="input-field" />
-                    <button id="verify-your-bot" class="btn btn-verify">CREAT ACC</button>
-                </div>
-                <div id="bot-name-status" class="status-message"></div>
-            </div>
-        </section>
-
-        <!-- API TOOLS Section -->
-        <section id="api-tools" class="tool-section">
-            <h2 class="section-title glitch-text" data-text="API Arsenal">API Arsenal</h2>
-            <div class="api-grid">
-                <!-- ADD FRIEND -->
-                <div class="api-card">
-                    <div class="api-header"><i class="fas fa-user-edit"></i><h3>ADD FRIEND</h3></div>
-                    <div class="input-group">
-                        <label for="bot-list-add">YOUR BOT LIST</label>
-                        <select id="bot-list-add" class="input-field">
-                            <option value="" disabled selected>Select your bot...</option>
-                            <option value="1">1</option>
-                            <option value="2">2</option>
-                            <option value="3">3</option>
-                        </select>
-                    </div>
-                    <div class="input-group">
-                        <input type="text" id="user-id" placeholder="Enter Friend UID..." class="input-field" />
-                    </div>
-                    <div class="input-group">
-                        <input type="number" id="friend-days" placeholder="Enter number of days..." class="input-field" min="1" />
-                    </div>
-                    <div class="input-group">
-                        <button id="adding-friend" class="btn btn-api">add friend</button>
-                    </div>
-                    <div id="add-friend-status" class="status-message"></div>
-                </div>
-
-                <!-- REMOVE FRIEND -->
-                <div class="api-card">
-                    <div class="api-header"><i class="fas fa-user-friends"></i><h3>REMOVE FRIEND</h3></div>
-                    <div class="input-group">
-                        <label for="bot-list-remove">YOUR BOT LIST</label>
-                        <select id="bot-list-remove" class="input-field">
-                            <option value="" disabled selected>Select your bot...</option>
-                            <option value="1">1</option>
-                            <option value="2">2</option>
-                            <option value="3">3</option>
-                        </select>
-                    </div>
-                    <div class="input-group">
-                        <input type="text" id="friend-player-id" placeholder="Enter Friend UID..." class="input-field" />
-                    </div>
-                    <div class="input-group">
-                        <button id="remove-friend" class="btn btn-api">removing friend</button>
-                    </div>
-                    <div id="remove-friend-status" class="status-message"></div>
-                </div>
-            </div>
-        </section>
 
         <!-- REGISTERED UIDS Section -->
         <section id="registered-ids" class="tool-section">
             <h2 class="section-title glitch-text" data-text="Registered UIDs">Registered UIDs</h2>
             <div id="uids-list">
-                <ul>
-                    {% for uid in registeredUIDs %}
-                        <li>{{ uid }}</li>
-                    {% else %}
-                        <li>لا توجد UIDs مسجلة</li>
-                    {% endfor %}
-                </ul>
+                {% if registeredUIDs and registeredUIDs.uids %}
+                <table>
+                    <thead>
+                        <tr>
+                            <th>UID</th>
+                            <th>Added By</th>
+                            <th>Added At</th>
+                            <th>Expires At</th>
+                            <th>Remaining Time (Days, Hrs, Min)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for uid, info in registeredUIDs.uids.items() %}
+                        <tr>
+                            <td>{{ uid }}</td>
+                            <td>{{ info.added_by }}</td>
+                            <td>{{ info.added_at }}</td>
+                            <td>{{ info.expires_at }}</td>
+                            <td>{{ info.remaining_time.days }}, {{ info.remaining_time.hours }}, {{ info.remaining_time.minutes }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <p>لا توجد UIDs مسجلة</p>
+                {% endif %}
             </div>
         </section>
 
-        <!-- BNGX Section -->
-        <section id="team" class="tool-section">
-            <h2 class="section-title glitch-text" data-text="BNGX">BNGX</h2>
-            <div class="team-grid">
-                <div class="team-card">
-                    <div class="profile-img purple-border">
-                        <img src="{{ url_for('static', filename='images/E915864E-4C38-4EFA-96E0-E13ECA51DFEA_1755810001562.jpeg') }}" alt="BNGX Profile" />
-                    </div>
-                    <h3 class="dev-name purple-text">BNGX</h3>
-                    <p class="dev-role">CODEX TEAM PANEL</p>
-                    <p class="dev-description">Site creator</p>
-                    <a href="https://t.me/BNGXXXX" target="_blank" class="btn btn-telegram purple">
-                        <i class="fab fa-telegram-plane"></i> Contact via Telegram
-                    </a>
-                </div>
-            </div>
-        </section>
-
-        <!-- Footer -->
-        <footer class="footer tool-section">
-            <h2 class="section-title glitch-text" data-text="CODEX TEAM">CODEX TEAM</h2>
-            <p>Advanced Hacker Tools & Bots Solutions</p>
-            <p>© 2024 CODEX TEAM | Site created by BNGX</p>
-            <p class="warning">⚠️ For educational and authorized testing purposes only</p>
-        </footer>
     </div>
 
     <!-- Matrix Rain Background Canvas -->
@@ -303,5 +223,3 @@
     </script>
 </body>
 </html>
-
-                        
