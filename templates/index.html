@@ -37,53 +37,26 @@
             margin: 20px 0;
             border-radius: 12px;
         }
-        .input-group {
-            margin-bottom: 15px;
-        }
-        .input-field {
+        table {
             width: 100%;
-            padding: 8px 10px;
-            border-radius: 6px;
-            border: 1px solid #00ff99;
-            background: #111;
+            border-collapse: collapse; 
+            margin-top: 10px;
             color: #00ff99;
         }
-        .btn {
-            padding: 8px 16px;
-            border: none;
-            border-radius: 6px;
+        th, td {
+            border: 1px solid #00ff99;
+            padding: 8px;
+            text-align: center;
+        }
+        th {
             background: linear-gradient(90deg,#ff00ff,#00ffff);
             color: #000;
-            cursor: pointer;
-            font-weight: 600;
         }
-        .status-message {
-            color: #ff5555;
-            font-weight: 500;
-            margin-top: 5px;
-        }
-        .api-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit,minmax(300px,1fr));
-            gap: 20px;
-        }
-        .api-card {
-            padding: 20px;
-            border: 1px solid #00ff99;
-            border-radius: 12px;
-            background: rgba(0,0,0,0.6);
-        }
-        .api-header {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            margin-bottom: 15px;
-        }
-        .api-header h3 {
-            margin: 0;
-            color: #00ff99;
-        }
-        /* Glitch effect for headers */
+        /* ألوان حسب الوقت المتبقي */
+        .long-term { background-color: rgba(0, 255, 0, 0.2); }   /* أخضر فاتح */
+        .mid-term { background-color: rgba(255, 255, 0, 0.2); } /* أصفر فاتح */
+        .short-term { background-color: rgba(255, 0, 0, 0.2); } /* أحمر فاتح */
+        /* Glitch effect */
         .glitch-text {
             position: relative;
             color: #00ff99;
@@ -109,50 +82,23 @@
             animation: glitchBottom 2s infinite linear alternate-reverse;
         }
         @keyframes glitchTop {
-            0% { clip: rect(0,9999px,0,0); }
-            5% { clip: rect(0,9999px,5px,0); }
-            10% { clip: rect(0,9999px,0,0); }
-            15% { clip: rect(0,9999px,5px,0); }
-            20% { clip: rect(0,9999px,0,0); }
-            25% { clip: rect(0,9999px,5px,0); }
-            30% { clip: rect(0,9999px,0,0); }
-            100% { clip: rect(0,9999px,0,0); }
+            0%,10%,20%,30%,100% { clip: rect(0,9999px,0,0); }
+            5%,15%,25% { clip: rect(0,9999px,5px,0); }
         }
         @keyframes glitchBottom {
-            0% { clip: rect(5px,9999px,9999px,0); }
-            5% { clip: rect(5px,9999px,9999px,0); }
-            10% { clip: rect(5px,9999px,9999px,0); }
-            15% { clip: rect(0,9999px,9999px,0); }
-            20% { clip: rect(5px,9999px,9999px,0); }
-            25% { clip: rect(0,9999px,9999px,0); }
-            30% { clip: rect(5px,9999px,9999px,0); }
-            100% { clip: rect(5px,9999px,9999px,0); }
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse; 
-            margin-top: 10px;
-            color: #00ff99;
-        }
-        th, td {
-            border: 1px solid #00ff99;
-            padding: 8px;
-            text-align: center;
-        }
-        th {
-            background: linear-gradient(90deg,#ff00ff,#00ffff);
-            color: #000;
+            0%,10%,20%,30%,100% { clip: rect(5px,9999px,9999px,0); }
+            15%,25% { clip: rect(0,9999px,9999px,0); }
         }
     </style>
 </head>
 <body>
     <div class="container">
 
-        <!-- REGISTERED UIDS Section -->
+        <!-- REGISTERED UIDs Section -->
         <section id="registered-ids" class="tool-section">
             <h2 class="section-title glitch-text" data-text="Registered UIDs">Registered UIDs</h2>
             <div id="uids-list">
-                {% if registeredUIDs and registeredUIDs.uids %}
+                {% if registeredUIDs %}
                 <table>
                     <thead>
                         <tr>
@@ -160,17 +106,20 @@
                             <th>Added By</th>
                             <th>Added At</th>
                             <th>Expires At</th>
-                            <th>Remaining Time (Days, Hrs, Min)</th>
+                            <th>Remaining Time</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {% for uid, info in registeredUIDs.uids.items() %}
-                        <tr>
+                        {% for uid, info in registeredUIDs.items() %}
+                        {% set days = info.remaining_time.days %}
+                        <tr class="{% if days > 30 %}long-term{% elif days >= 7 %}mid-term{% else %}short-term{% endif %}">
                             <td>{{ uid }}</td>
                             <td>{{ info.added_by }}</td>
                             <td>{{ info.added_at }}</td>
                             <td>{{ info.expires_at }}</td>
-                            <td>{{ info.remaining_time.days }}, {{ info.remaining_time.hours }}, {{ info.remaining_time.minutes }}</td>
+                            <td>
+                                <span class="countdown" data-expiry="{{ info.expires_at }}"></span>
+                            </td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -189,7 +138,7 @@
     <!-- Script -->
     <script src="{{ url_for('static', filename='js/script.js') }}"></script>
     <script>
-        // Matrix Rain Background animation script
+        // Matrix Rain Background animation
         const canvas = document.getElementById('matrix-canvas');
         const ctx = canvas.getContext('2d');
         canvas.width = window.innerWidth;
@@ -220,6 +169,33 @@
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
         });
+
+        // Countdown Timer
+        function updateCountdowns() {
+            const countdowns = document.querySelectorAll('.countdown');
+            countdowns.forEach(el => {
+                const expiryStr = el.getAttribute('data-expiry');
+                if (!expiryStr) return;
+
+                const expiryDate = new Date(expiryStr).getTime();
+                const now = new Date().getTime();
+                const distance = expiryDate - now;
+
+                if (distance <= 0) {
+                    el.innerHTML = "Expired";
+                    return;
+                }
+
+                const days = Math.floor(distance / (1000 * 60 * 60 * 24));
+                const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+                const seconds = Math.floor((distance % (1000 * 60)) / 1000);
+
+                el.innerHTML = `${days}d ${hours}h ${minutes}m ${seconds}s`;
+            });
+        }
+        setInterval(updateCountdowns, 1000);
+        updateCountdowns();
     </script>
 </body>
 </html>
