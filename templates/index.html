@@ -225,7 +225,15 @@
         <!-- REGISTERED UIDS Section -->
         <section id="registered-ids" class="tool-section">
             <h2 class="section-title glitch-text" data-text="Registered UIDs">Registered UIDs</h2>
-            <div id="uids-list"></div>
+            <div id="uids-list">
+                <ul>
+                    {% for uid in registeredUIDs %}
+                        <li>{{ uid }}</li>
+                    {% else %}
+                        <li>لا توجد UIDs مسجلة</li>
+                    {% endfor %}
+                </ul>
+            </div>
         </section>
 
         <!-- BNGX Section -->
@@ -261,7 +269,7 @@
     <!-- Script -->
     <script src="{{ url_for('static', filename='js/script.js') }}"></script>
     <script>
-        // Example Matrix Rain Background
+        // Matrix Rain Background animation script
         const canvas = document.getElementById('matrix-canvas');
         const ctx = canvas.getContext('2d');
         canvas.width = window.innerWidth;
@@ -295,4 +303,5 @@
     </script>
 </body>
 </html>
+
                         
