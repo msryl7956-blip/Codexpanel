@@ -1,13 +1,10 @@
 from flask import Flask, request, jsonify, render_template, redirect, session, url_for
-import time, secrets, re, threading, requests, random
+import time, secrets, re, threading, requests, random, ssl
 from functools import wraps
 from collections import defaultdict
 from flask_caching import Cache
-
-from db import (
-    create_accounts_table, create_friends_table, get_all_accounts, get_account_by_id,
-    update_account_nickname, add_account, add_friend_to_db, get_friends_by_account, get_db_connection
-)
+import pg8000.native as pg
+from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
 app.secret_key = secrets.token_hex(32)
@@ -17,10 +14,143 @@ app.config['CACHE_TYPE'] = 'SimpleCache'
 app.config['CACHE_DEFAULT_TIMEOUT'] = 300  # 5 دقائق
 cache = Cache(app)
 
-# إنشاء الجداول إذا لم تكن موجودة
+lock = threading.Lock()
+
+# -------------------- DATABASE --------------------
+def get_db_connection():
+    ssl_context = ssl.create_default_context()
+    return pg.Connection(
+        user="bngx_o9tu_user",
+        password="D8kA9EfmAiXmGze6OCqLOWaaMuA7KbBo",
+        host="dpg-d35ndpbipnbc739k2lhg-a.oregon-postgres.render.com",
+        port=5432,
+        database="bngx_o9tu",
+        ssl_context=ssl_context
+    )
+
+# --- Accounts ---
+def create_accounts_table():
+    conn = get_db_connection()
+    conn.run('''
+        CREATE TABLE IF NOT EXISTS accounts (
+            id SERIAL PRIMARY KEY,
+            uid BIGINT UNIQUE NOT NULL,
+            password VARCHAR(255) NOT NULL,
+            nickname VARCHAR(255) DEFAULT ''
+        );
+    ''')
+    conn.close()
+
+def get_all_accounts():
+    conn = get_db_connection()
+    rows = conn.run('SELECT * FROM accounts;')
+    cols = [col["name"] for col in conn.columns]
+    accounts = [dict(zip(cols, row)) for row in rows]
+    conn.close()
+    return accounts
+
+def get_account_by_id(account_id):
+    conn = get_db_connection()
+    rows = conn.run('SELECT * FROM accounts WHERE id = :id;', id=account_id)
+    cols = [col["name"] for col in conn.columns]
+    account = dict(zip(cols, rows[0])) if rows else None
+    conn.close()
+    return account
+
+def update_account_nickname(account_id, nickname):
+    conn = get_db_connection()
+    conn.run('UPDATE accounts SET nickname = :nickname WHERE id = :id;', nickname=nickname, id=account_id)
+    conn.close()
+
+def add_account(uid, password, nickname=''):
+    conn = get_db_connection()
+    conn.run('''
+        INSERT INTO accounts (uid, password, nickname)
+        VALUES (:uid, :password, :nickname)
+        ON CONFLICT (uid) DO NOTHING;
+    ''', uid=int(uid), password=password, nickname=nickname)
+    conn.close()
+
+# --- Friends ---
+def create_friends_table():
+    conn = get_db_connection()
+    conn.run('''
+        CREATE TABLE IF NOT EXISTS account_friends (
+            id SERIAL PRIMARY KEY,
+            account_id INT NOT NULL,
+            friend_uid BIGINT NOT NULL,
+            days INT DEFAULT 0,
+            UNIQUE(account_id, friend_uid)
+        );
+    ''')
+    conn.close()
+
+def add_friend_to_db(account_id, friend_uid, days=0):
+    conn = get_db_connection()
+    conn.run('''
+        INSERT INTO account_friends (account_id, friend_uid, days)
+        VALUES (:account_id, :friend_uid, :days)
+        ON CONFLICT (account_id, friend_uid) DO UPDATE SET days=:days;
+    ''', account_id=int(account_id), friend_uid=int(friend_uid), days=int(days))
+    conn.close()
+
+def remove_friend_from_db(account_id, friend_uid):
+    conn = get_db_connection()
+    conn.run('DELETE FROM account_friends WHERE account_id=:account_id AND friend_uid=:friend_uid;',
+             account_id=int(account_id), friend_uid=int(friend_uid))
+    conn.close()
+
+def get_friends_by_account(account_id):
+    conn = get_db_connection()
+    rows = conn.run('SELECT friend_uid FROM account_friends WHERE account_id=:account_id;', account_id=int(account_id))
+    friends = [row[0] for row in rows]
+    conn.close()
+    return friends
+
+# --- Admin Users ---
+def create_admin_users_table():
+    conn = get_db_connection()
+    conn.run('''
+        CREATE TABLE IF NOT EXISTS admin_users (
+            id SERIAL PRIMARY KEY,
+            username VARCHAR(50) UNIQUE NOT NULL,
+            password VARCHAR(255) NOT NULL
+        );
+    ''')
+    conn.close()
+
+def add_admin_user(username, password):
+    conn = get_db_connection()
+    hashed_pw = generate_password_hash(password)
+    conn.run('''
+        INSERT INTO admin_users (username, password)
+        VALUES (:username, :password)
+        ON CONFLICT (username) DO NOTHING;
+    ''', username=username, password=hashed_pw)
+    conn.close()
+
+def get_all_admins():
+    conn = get_db_connection()
+    rows = conn.run('SELECT id, username FROM admin_users;')
+    cols = [col["name"] for col in conn.columns]
+    admins = [dict(zip(cols, row)) for row in rows]
+    conn.close()
+    return admins
+
+def verify_admin_login(username, password):
+    conn = get_db_connection()
+    rows = conn.run('SELECT password FROM admin_users WHERE username=:username;', username=username)
+    conn.close()
+    if rows:
+        return check_password_hash(rows[0][0], password)
+    return False
+
+# إنشاء الجداول عند بدء التطبيق
 create_accounts_table()
 create_friends_table()
+create_admin_users_table()
 
+# -------------------- SECURITY --------------------
 S1X_PROTECTION_CONFIG = {
     'enabled': True,
     'max_attempts': 3,
@@ -39,11 +169,8 @@ verification_sessions = {}
 failed_challenges = defaultdict(int)
 ddos_tracker = defaultdict(lambda: defaultdict(int))
 suspicious_ips = defaultdict(list)
-lock = threading.Lock()
 
-ADMIN_CREDENTIALS = {"bHLM": "bHLM"}
-
-# --- Helper Functions ---
+# --- Helpers ---
 def get_client_ip():
     if request.environ.get('HTTP_X_FORWARDED_FOR'):
         return request.environ['HTTP_X_FORWARDED_FOR'].split(',')[0].strip()
@@ -81,10 +208,11 @@ def analyze_request_pattern(ip, endpoint, headers):
     return 'normal'
 
 def should_challenge_request(ip, user_agent, endpoint):
-    if not S1X_PROTECTION_CONFIG['enabled']: return False
+    if not S1X_PROTECTION_CONFIG['enabled']: 
+        return False
     session_data = verification_sessions.get(ip)
     session_timeout = S1X_PROTECTION_CONFIG.get('session_timeout', 1800)
-    if session_
+    if session_data:
         if session_data.get('captcha_verified', False) and (time.time() - session_data.get('verified_at', 0)) < session_timeout:
             return False
         else:
@@ -128,9 +256,10 @@ def generate_captcha_challenge():
     session['captcha_answer'] = answer
     return f"{n1} {op} {n2}"
 
-# --- Admin & Security Routes ---
+# -------------------- SECURITY ROUTES --------------------
 @app.route('/api/security/generate-challenge')
-def generate_challenge(): return jsonify({"question": generate_captcha_challenge()})
+def generate_challenge(): 
+    return jsonify({"question": generate_captcha_challenge()})
 
 @app.route('/api/security/verify-human', methods=['POST'])
 def verify_human():
@@ -151,31 +280,51 @@ def verify_human():
     return jsonify({"success": False, "message": "إجابة غير صحيحة، حاول مرة أخرى"})
 
 @app.route('/security/challenge')
-def security_challenge(): return render_template('captcha.html')
+def security_challenge(): 
+    return render_template('captcha.html')
 
-@app.route('/admin/login')
+# -------------------- ADMIN LOGIN --------------------
+@app.route('/admin/login', methods=['GET', 'POST'])
 def admin_login():
     ip = get_client_ip()
     if not verification_sessions.get(ip, {}).get('captcha_verified'):
         return redirect(url_for('security_challenge'))
+    if request.method == 'POST':
+        data = request.form
+        username = data.get('username')
+        password = data.get('password')
+        if verify_admin_login(username, password):
+            session['admin_logged_in'] = True
+            session['admin_username'] = username
+            verification_sessions[ip]['admin_logged_in'] = True
+            return redirect(url_for('admin_dashboard'))
+        return render_template('admin_login.html', error="اسم المستخدم أو كلمة المرور خاطئة")
     return render_template('admin_login.html')
 
-@app.route('/admin/authenticate', methods=['POST'])
-def admin_authenticate():
-    ip = get_client_ip()
-    if not verification_sessions.get(ip, {}).get('captcha_verified'):
-        return jsonify({"success": False, "message": "يجب تجاوز التحقق الأمني"}), 403
+# -------------------- ADMIN DASHBOARD --------------------
+@app.route('/admin/dashboard')
+@protection_required
+@admin_required
+def admin_dashboard():
+    admins = get_all_admins()
+    return render_template('admin_dashboard.html', admins=admins)
+
+@app.route('/admin/create_user', methods=['POST'])
+@protection_required
+@admin_required
+def admin_create_user():
     data = request.json or {}
-    username, password = data.get('username'), data.get('password')
-    if username in ADMIN_CREDENTIALS and ADMIN_CREDENTIALS[username] == password:
-        session['admin_logged_in'] = True
-        session['admin_username'] = username
-        verification_sessions[ip]['admin_logged_in'] = True
-        return jsonify({"success": True, "session_id": secrets.token_hex(16)})
-    return jsonify({"success": False, "message": "اسم المستخدم أو كلمة المرور غير صحيحة"})
+    username = data.get('username')
+    password = data.get('password')
+    if not username or not password:
+        return jsonify({"success": False, "message": "يجب إدخال اسم المستخدم وكلمة المرور"})
+    try:
+        add_admin_user(username, password)
+        return jsonify({"success": True, "message": "تم إنشاء المستخدم بنجاح"})
+    except Exception as e:
+        return jsonify({"success": False, "message": f"خطأ داخلي: {str(e)}"})
 
-# --- Main Routes ---
-
+# -------------------- MAIN ROUTE --------------------
 @app.route('/')
 @protection_required
 @admin_required
@@ -184,11 +333,8 @@ def index():
     nicknames = {str(acc['id']): acc['nickname'] for acc in accounts}
 
     registered_uids = {}
-
     try:
         response = requests.get("https://time-bngx-0c2h.onrender.com/api/list_uids", timeout=10)
-        print("API status:", response.status_code)  # DEBUG
-        print("API text:", response.text[:500])     # DEBUG (أول 500 كاركتر)
         response.raise_for_status()
         api_data = response.json()
         registered_uids = api_data.get("uids", {})
@@ -201,10 +347,7 @@ def index():
         registeredUIDs=registered_uids
     )
 
-
-
-
-# --- Create / Update Account Name ---
+# -------------------- CREATE / UPDATE ACCOUNT --------------------
 @app.route('/api/create_account', methods=['POST'])
 @protection_required
 @admin_required
@@ -229,7 +372,7 @@ def create_account():
     except Exception as e:
         return jsonify({"success": False, "message": f"خطأ داخلي: {str(e)}"}), 500
 
-# --- Add Friend ---
+# -------------------- FRIEND MANAGEMENT --------------------
 @app.route('/api/add_friend', methods=['POST'])
 @protection_required
 @admin_required
@@ -264,31 +407,14 @@ def add_friend():
 
         if add_data.get('status') == 'success':
             add_friend_to_db(account_id, friend_uid, days=days)
-
-            # حذف الكاش لتحديث الصفحة في الزيارات التالية
             cache.delete('index_page')
-
-            if days:
-                try:
-                    api_url = f"https://time-bngx-0c2h.onrender.com/api/add_uid?uid={friend_uid}&time={days}&type=days&permanent=false"
-                    external_resp = requests.get(api_url, timeout=5)
-                    external_resp.raise_for_status()
-                    external_data = external_resp.json()
-                    if external_data.get('success') or external_data.get('message'):
-                        return jsonify({"success": True, "message": "تمت إضافة الصديق بنجاح وتم إرسال عدد الأيام بنجاح."})
-                    else:
-                        return jsonify({"success": True, "message": "تمت إضافة الصديق بنجاح ولكن حدث خطأ في إرسال عدد الأيام."})
-                except Exception as e:
-                    return jsonify({"success": True, "message": f"تمت إضافة الصديق بنجاح لكن حدث خطأ أثناء إرسال عدد الأيام: {str(e)}"})
-            else:
-                return jsonify({"success": True, "message": "تمت إضافة الصديق بنجاح"})
+            return jsonify({"success": True, "message": "تمت إضافة الصديق بنجاح"})
         else:
             error_msg = add_data.get('message', "فشل في إضافة الصديق")
             return jsonify({"success": False, "message": error_msg})
     except Exception as e:
         return jsonify({"success": False, "message": f"خطأ داخلي: {str(e)}"}), 500
 
-# --- Remove Friend (using new API without token) ---
 @app.route('/api/remove_friend', methods=['POST'])
 @protection_required
 @admin_required
@@ -311,20 +437,13 @@ def remove_friend():
         remove_data = remove_response.json()
 
         if remove_data.get('success', False):
-            # إزالة من قاعدة البيانات محلياً أيضاً
-            conn = get_db_connection()
-            conn.run('DELETE FROM account_friends WHERE friend_uid = :friend_uid AND account_id = :account_id;',
-                     friend_uid=int(friend_uid), account_id=int(account_id))
-            conn.close()
-
-            # حذف الكاش لتحديث الصفحة
+            remove_friend_from_db(account_id, friend_uid)
             cache.delete('index_page')
-
-            return jsonify({"success": True, "message": "تمت إزالة الصديق بنجاح"})
-        else:
-            return jsonify({"success": False, "message": remove_data.get('message', "فشل إزالة الصديق")})
+            return jsonify({"success": True, "message": "تم حذف الصديق بنجاح"})
+        return jsonify({"success": False, "message": "فشل في حذف الصديق"})
     except Exception as e:
         return jsonify({"success": False, "message": f"خطأ داخلي: {str(e)}"}), 500
 
-if __name__ == '__main__':
-    app.run(debug=True)
+# -------------------- RUN APP --------------------
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000, debug=True)
