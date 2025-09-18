@@ -196,8 +196,9 @@ def index():
     return render_template(
         'index.html',
         nicknames=nicknames,
-        registeredUIDs=registered_uids  # الآن فقط اليوزرات
+        registeredUIDs=registered_uids  # dict مباشرة
     )
+
 
 
 # --- Create / Update Account Name ---
