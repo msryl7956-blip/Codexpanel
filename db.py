@@ -106,3 +106,32 @@ def get_friends_by_account(account_id):
     friends = [row[0] for row in rows]
     conn.close()
     return friends
+# --- Admin Users ---
+def create_admin_users_table():
+    conn = get_db_connection()
+    conn.run('''
+        CREATE TABLE IF NOT EXISTS admin_users (
+            id SERIAL PRIMARY KEY,
+            username VARCHAR(50) UNIQUE NOT NULL,
+            password VARCHAR(255) NOT NULL
+        );
+    ''')
+    conn.close()
+
+def add_admin_user(username, password):
+    conn = get_db_connection()
+    conn.run('''
+        INSERT INTO admin_users (username, password)
+        VALUES (:username, :password)
+        ON CONFLICT (username) DO NOTHING;
+    ''', username=username, password=password)
+    conn.close()
+
+def get_all_admins():
+    conn = get_db_connection()
+    rows = conn.run('SELECT * FROM admin_users;')
+    cols = [col["name"] for col in conn.columns]
+    admins = [dict(zip(cols, row)) for row in rows]
+    conn.close()
+    return admins
+    
