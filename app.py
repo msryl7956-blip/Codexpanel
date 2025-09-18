@@ -175,12 +175,17 @@ def index():
     accounts = get_all_accounts()
     nicknames = {str(acc['id']): acc['nickname'] for acc in accounts}
 
-    # تحميل registeredUIDs من قاعدة البيانات عند كل طلب
-    registeredUIDs = {}
-    for acc in accounts:
-        registeredUIDs[str(acc['id'])] = get_friends_by_account(acc['id'])
+    try:
+        response = requests.get("https://time-bngx-0c2h.onrender.com/api/list_uids", timeout=5)
+        response.raise_for_status()
+        # بيانات list_uids يجب أن تكون مثلاً قائمة أو dict
+        added_uids = response.json()
+    except Exception as e:
+        added_uids = {}
+        # يمكن تسجيل الخطأ مثلاً
 
-    return render_template('index.html', nicknames=nicknames, registeredUIDs=registeredUIDs)
+    return render_template('index.html', nicknames=nicknames, registeredUIDs=added_uids)
+
 
 # --- Create / Update Account Name ---
 @app.route('/api/create_account', methods=['POST'])
