@@ -146,9 +146,22 @@ def verify_admin_login(username, password):
     return False
 
 # إنشاء الجداول عند بدء التطبيق
+# إنشاء الجداول عند بدء التطبيق
 create_accounts_table()
 create_friends_table()
 create_admin_users_table()
+
+# -------------------- INIT DEFAULT ADMIN --------------------
+def init_default_admin():
+    conn = get_db_connection()
+    rows = conn.run('SELECT COUNT(*) FROM admin_users;')
+    conn.close()
+    if rows[0][0] == 0:  # إذا الجدول فاضي
+        add_admin_user("admiin", "admin123")
+        print("[INFO] ✅ تم إنشاء الأدمن الافتراضي: username=admin / password=admin123")
+
+init_default_admin()
+
 
 # -------------------- SECURITY --------------------
 S1X_PROTECTION_CONFIG = {
